@@ -12,7 +12,7 @@ const { spawnSync } = require("child_process");
 const { URL, URLSearchParams } = require("url");
 
 const APP_NAME = "seotask-cli";
-const CLI_VERSION = "1.0.1";
+const CLI_VERSION = "1.0.2";
 const GITHUB_REPO = "alpian9890/seotask-app-cli";
 const BASE_URL = "https://seo-task.com";
 const WEBAPP_URL = `${BASE_URL}/webphone/`;
@@ -1514,14 +1514,17 @@ async function cmdLogin(args) {
 function prompt(question) {
   let input = process.stdin;
   let output = process.stdout;
-  let usingTty = false;
+  let closeTty = null;
   if (!process.stdin.isTTY) {
     try {
       const inputFd = fs.openSync("/dev/tty", "r");
       const outputFd = fs.openSync("/dev/tty", "w");
       input = fs.createReadStream(null, { fd: inputFd, autoClose: true });
       output = fs.createWriteStream(null, { fd: outputFd, autoClose: true });
-      usingTty = true;
+      closeTty = () => {
+        input.destroy();
+        output.end();
+      };
     } catch (_) {
       input = process.stdin;
       output = process.stdout;
@@ -1530,7 +1533,7 @@ function prompt(question) {
   const rl = readline.createInterface({ input, output });
   return new Promise((resolve) => rl.question(question, (answer) => {
     rl.close();
-    if (usingTty) output.end();
+    if (closeTty) closeTty();
     resolve(answer);
   }));
 }
