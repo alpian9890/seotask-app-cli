@@ -1,0 +1,31 @@
+{
+  "name": "seotask-app-cli",
+  "version": "1.0.0",
+  "description": "Node.js CLI for SeoTask session management, headless runner, auto relogin, and VPS service automation.",
+  "license": "MIT",
+  "type": "commonjs",
+  "bin": {
+    "seotask": "./src/seotask.js"
+  },
+  "scripts": {
+    "check": "node --check src/seotask.js && node --check scripts/build.js",
+    "start": "node src/seotask.js",
+    "build": "node scripts/build.js",
+    "build:arm64": "PKG_TARGET=node18-linux-arm64 node scripts/build.js",
+    "build:amd64": "PKG_TARGET=node18-linux-x64 node scripts/build.js",
+    "build:release": "BUILD_RELEASE=1 node scripts/build.js"
+  },
+  "pkg": {
+    "scripts": [
+      "dist/seotask.obf.js"
+    ],
+    "targets": [
+      "node18-linux-arm64"
+    ],
+    "outputPath": "build"
+  },
+  "devDependencies": {
+    "javascript-obfuscator": "^4.1.1",
+    "pkg": "^5.8.1"
+  }
+}
