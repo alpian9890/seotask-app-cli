@@ -44,6 +44,7 @@ Command dibuat mengikuti pola `seofast-app-cli` selama cocok dengan flow SeoTask
 ```bash
 seotask fingerprint init
 seotask fingerprint show
+seotask login
 seotask login --email 'email@mail.com' --password 'password'
 seotask login --cookie 'PHPSESSID=...; other=value'
 seotask status

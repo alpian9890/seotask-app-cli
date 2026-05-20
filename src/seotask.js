@@ -12,7 +12,7 @@ const { spawnSync } = require("child_process");
 const { URL, URLSearchParams } = require("url");
 
 const APP_NAME = "seotask-cli";
-const CLI_VERSION = "1.0.2";
+const CLI_VERSION = "1.0.3";
 const GITHUB_REPO = "alpian9890/seotask-app-cli";
 const BASE_URL = "https://seo-task.com";
 const WEBAPP_URL = `${BASE_URL}/webphone/`;
@@ -1505,8 +1505,8 @@ async function cmdLogin(args) {
     console.log("Jalankan `seotask status` untuk verifikasi session.");
     return 0;
   }
-  const email = String(args.email || "").trim();
-  const password = String(args.password || "").trim();
+  const email = String(args.email !== undefined ? args.email : await prompt("EMAIL: ")).trim();
+  const password = String(args.password !== undefined ? args.password : await prompt("PASSWORD: ")).trim();
   if (!email || !password) throw new CliError("Gunakan: seotask login --email 'email@mail.com' --password 'password'");
   return runLoginWithCredentials(args, email, password);
 }
@@ -2143,8 +2143,16 @@ async function cmdStart(args) {
   let lastReloginAttempt = 0;
 
   const tryAutoRelogin = async (trigger) => {
+    const notifyRelogin = async (status, message = "") => {
+      try {
+        await sendReloginTelegramNotification(status, { trigger, message, email: loginEmail || (creds && creds.email) || "" });
+      } catch (error) {
+        logEvent(`[TELEGRAM] Gagal kirim notifikasi relogin: ${error.message || error}`);
+      }
+    };
     if (!creds) {
       logEvent("[RELOGIN] Credentials belum tersedia (`seotask creds`).");
+      await notifyRelogin("Gagal", "Credentials belum tersedia. Jalankan `seotask creds` atau `seotask credentials`.");
       return false;
     }
     const now = Date.now() / 1000;
@@ -2168,6 +2176,8 @@ async function cmdStart(args) {
       await runLoginWithCredentials(reloginArgs, creds.email, creds.password, true);
     } catch (error) {
       logEvent(`[RELOGIN] Gagal: ${error.message || error}`);
+      const message = String(error.message || error);
+      await notifyRelogin(message.includes("CAPTCHA") ? "Gagal - CAPTCHA" : "Gagal", message);
       return false;
     }
     session = loadSession(true);
@@ -2183,6 +2193,7 @@ async function cmdStart(args) {
     deviceFallbackTried = false;
     deviceJson = buildHeadlessDeviceJson(profile);
     logEvent("[RELOGIN] Berhasil login ulang, runner dilanjutkan.");
+    await notifyRelogin("Berhasil", "Session berhasil diperbarui dan runner dilanjutkan.");
     return true;
   };
 
@@ -2680,6 +2691,25 @@ async function sendTelegramPhoto(config, photoPath, caption) {
   return result;
 }
 
+async function sendReloginTelegramNotification(status, details = {}) {
+  const config = loadTelegramConfig(false);
+  if (!config) return false;
+  const timezone = normalizeTimezone(config.timezone || "Asia/Jakarta");
+  const ip = await publicIpAddress();
+  const lines = [
+    "SeoTask Auto Relogin",
+    `Status: ${status}`,
+    `Trigger: ${details.trigger || "-"}`,
+    `Waktu: ${formatHumanDate(new Date(), timezone, true)}`,
+    `Hostname VPS: ${os.hostname() || "-"}`,
+    `IP VPS: ${ip}`,
+  ];
+  if (details.email) lines.push(`Email: ${details.email}`);
+  if (details.message) lines.push(`Info: ${details.message}`);
+  await sendTelegramMessage(config, lines.join("\n"));
+  return true;
+}
+
 function removeTelegramCron() {
   if (!commandExists("crontab")) return false;
   const current = spawnSync("crontab", ["-l"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
@@ -3122,7 +3152,7 @@ options:
 }
 
 function printLoginHelp() {
-  console.log(`usage: seotask login [-h] (--email EMAIL --password PASSWORD | --cookie COOKIE | --cookie-file FILE)
+  console.log(`usage: seotask login [-h] [--email EMAIL --password PASSWORD | --cookie COOKIE | --cookie-file FILE]
 
 options:
   -h, --help              show this help message and exit
@@ -3435,8 +3465,8 @@ async function dispatch(argv) {
       printLoginHelp();
       return 0;
     }
-    if (!args.cookie && !args.cookieFile && (!args.email || !args.password)) throw new UsageError("the following arguments are required: --email, --password (atau --cookie/--cookie-file)");
-    if ((args.cookie || args.cookieFile) && (args.email || args.password)) throw new UsageError("gunakan salah satu: --email/--password atau --cookie/--cookie-file");
+    if (!args.cookie && !args.cookieFile && ((args.email && !args.password) || (!args.email && args.password))) throw new UsageError("gunakan --email dan --password bersamaan, atau jalankan `seotask login` tanpa argumen untuk prompt interaktif");
+    if ((args.cookie || args.cookieFile) && (args.email || args.password)) throw new UsageError("gunakan salah satu: --email/--password, prompt interaktif, atau --cookie/--cookie-file");
     if (args.cookie && args.cookieFile) throw new UsageError("gunakan salah satu: --cookie atau --cookie-file");
     return cmdLogin(args);
   }
