@@ -103,6 +103,14 @@ function gmailPath() {
   return path.join(configDir(), "gmail.json");
 }
 
+function playerPath() {
+  return path.join(configDir(), "player.json");
+}
+
+function devtoolsPath() {
+  return path.join(configDir(), "devtools.json");
+}
+
 function binaryPath() {
   return process.pkg ? process.execPath : path.resolve(process.argv[1] || process.execPath);
 }
@@ -505,6 +513,8 @@ module.exports = {
   telegramPath,
   credentialsPath,
   gmailPath,
+  playerPath,
+  devtoolsPath,
   binaryPath,
   fileStatus,
   canWriteDir,

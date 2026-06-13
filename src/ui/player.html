@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SeoTask Player</title>
+    <style>
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        background: #0b0f14;
+        color: #d7dde7;
+        font-family: Arial, sans-serif;
+      }
+
+      .stage {
+        display: grid;
+        align-content: start;
+        grid-template-rows: auto auto auto;
+        width: 100%;
+        height: 100%;
+      }
+
+      .topbar {
+        display: grid;
+        gap: 8px;
+        padding: 8px;
+        border-bottom: 1px solid #1c2531;
+        background: #101720;
+      }
+
+      .state {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+
+      .badge {
+        min-width: 72px;
+        padding: 5px 8px;
+        border: 1px solid #2d3948;
+        border-radius: 6px;
+        background: #172231;
+        color: #edf2f7;
+        font-size: 12px;
+        font-weight: 700;
+        text-align: center;
+      }
+
+      .badge.wait {
+        color: #f3c969;
+        border-color: #5f4b1e;
+        background: #251f13;
+      }
+
+      .badge.task {
+        color: #8bd6ff;
+        border-color: #23516d;
+        background: #102333;
+      }
+
+      .badge.done {
+        color: #9be3b0;
+        border-color: #2d6040;
+        background: #122719;
+      }
+
+      .headline {
+        min-width: 0;
+        color: #d7dde7;
+        font-size: 13px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .metrics {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 6px;
+      }
+
+      .metric {
+        min-width: 0;
+      }
+
+      .metric span {
+        display: block;
+        color: #7d8897;
+        font-size: 10px;
+        line-height: 1.2;
+        text-transform: uppercase;
+      }
+
+      .metric strong {
+        display: block;
+        color: #eef3f8;
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1.35;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      iframe {
+        display: block;
+        width: 256px;
+        height: 144px;
+        max-width: calc(100vw - 16px);
+        border: 0;
+        background: #000;
+      }
+
+      .player {
+        display: grid;
+        align-content: start;
+        justify-content: center;
+        min-height: 160px;
+        padding: 8px;
+        background: #05070a;
+      }
+
+      .empty {
+        display: grid;
+        height: 100%;
+        place-items: center;
+        color: #7d8897;
+        font-size: 16px;
+        text-align: center;
+      }
+
+      .empty strong {
+        display: block;
+        color: #f3c969;
+        font-size: 22px;
+        margin-bottom: 6px;
+      }
+
+      .status {
+        padding: 8px 10px;
+        border-top: 1px solid #1c2531;
+        background: #111821;
+        font-size: 12px;
+        line-height: 1.4;
+        word-break: break-all;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="stage">
+      <header class="topbar">
+        <div class="state">
+          <div id="badge" class="badge wait">WAIT</div>
+          <div id="headline" class="headline">Waiting for task</div>
+        </div>
+        <div class="metrics">
+          <div class="metric"><span>Task ID</span><strong id="task-id">-</strong></div>
+          <div class="metric"><span>Video</span><strong id="video-id">-</strong></div>
+          <div class="metric"><span>Countdown</span><strong id="countdown">--:--</strong></div>
+          <div class="metric"><span>Reward</span><strong id="reward">-</strong></div>
+          <div class="metric"><span>Balance</span><strong id="balance">-</strong></div>
+        </div>
+      </header>
+      <main id="main" class="empty">WAIT</main>
+      <div id="status" class="status">Loading...</div>
+    </div>
+    <script>
+      let currentEmbedUrl = "";
+      let currentStatusText = "";
+      let lastState = {};
+      const qualityFallbacks = ["tiny", "small", "medium"];
+
+      function setStatus(text) {
+        if (text === currentStatusText) return;
+        currentStatusText = text;
+        document.getElementById("status").textContent = text;
+      }
+
+      function text(value, fallback) {
+        if (value === undefined || value === null || value === "") return fallback || "-";
+        return String(value);
+      }
+
+      function countdownText(state) {
+        const timer = Number.parseInt(state.timer || 0, 10) || 0;
+        if (!timer || !state.startedAt || state.status !== "TASK") return "--:--";
+        const started = new Date(state.startedAt).getTime();
+        if (!Number.isFinite(started)) return "--:--";
+        const elapsed = Math.max(0, Math.floor((Date.now() - started) / 1000));
+        const remaining = Math.max(0, timer - elapsed);
+        const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
+        const ss = String(remaining % 60).padStart(2, "0");
+        return mm + ":" + ss;
+      }
+
+      function updateHeader(state) {
+        const status = text(state.status, "WAIT").toUpperCase();
+        const badge = document.getElementById("badge");
+        badge.className = "badge " + status.toLowerCase();
+        badge.textContent = status;
+        document.getElementById("headline").textContent = state.message || state.reason || (status === "WAIT" ? "Waiting for task" : "Task running");
+        document.getElementById("task-id").textContent = text(state.idStatus, "-");
+        document.getElementById("video-id").textContent = text(state.videoId, "-");
+        document.getElementById("countdown").textContent = countdownText(state);
+        document.getElementById("reward").textContent = state.reward ? "+" + state.reward + " RUB" : "-";
+        document.getElementById("balance").textContent = text(state.balance, "-");
+      }
+
+      function postToPlayer(command, value) {
+        const frame = document.getElementById("player-frame");
+        if (!frame || !frame.contentWindow) return;
+        frame.contentWindow.postMessage(JSON.stringify({
+          event: "command",
+          func: command,
+          args: value === undefined ? [] : [value],
+        }), "*");
+      }
+
+      function requestLowQuality() {
+        qualityFallbacks.forEach(function (quality, index) {
+          setTimeout(function () {
+            postToPlayer("setPlaybackQuality", quality);
+            postToPlayer("setPlaybackQualityRange", quality);
+            postToPlayer("playVideo");
+          }, 800 + index * 1200);
+        });
+      }
+
+      function renderState(state) {
+        lastState = state || {};
+        updateHeader(lastState);
+        const main = document.getElementById("main");
+        if (state.embedUrl) {
+          main.className = "player";
+          let frame = document.getElementById("player-frame");
+          if (!frame) {
+            main.innerHTML = "";
+            frame = document.createElement("iframe");
+            frame.id = "player-frame";
+            frame.allow = "autoplay; encrypted-media; picture-in-picture";
+            frame.allowFullscreen = true;
+            main.appendChild(frame);
+          }
+          if (state.embedUrl !== currentEmbedUrl) {
+            currentEmbedUrl = state.embedUrl;
+            frame.src = state.embedUrl;
+            requestLowQuality();
+          }
+          setStatus("PLAY " + state.videoId + " | " + state.sourceUrl);
+        } else {
+          currentEmbedUrl = "";
+          main.className = "empty";
+          main.innerHTML = "";
+          const wrap = document.createElement("div");
+          const title = document.createElement("strong");
+          const detail = document.createElement("div");
+          title.textContent = "[" + text(state.status, "WAIT").toUpperCase() + "]";
+          detail.textContent = text(state.reason || state.message, "No active task");
+          wrap.appendChild(title);
+          wrap.appendChild(detail);
+          main.appendChild(wrap);
+          setStatus(text(state.message || state.reason, "No active task"));
+        }
+      }
+
+      async function syncState() {
+        const response = await fetch("/state", { cache: "no-store" });
+        const state = await response.json();
+        renderState(state);
+      }
+
+      window.SeoTaskPlayerSync = syncState;
+
+      syncState().catch(function (error) {
+        setStatus(String(error && error.message || error));
+      });
+      setInterval(function () {
+        if (lastState && lastState.status === "TASK") updateHeader(lastState);
+        syncState().catch(function (error) {
+          setStatus(String(error && error.message || error));
+        });
+      }, 1000);
+    </script>
+  </body>
+</html>

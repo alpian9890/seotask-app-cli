@@ -2,6 +2,7 @@
 "use strict";
 
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const { spawnSync } = require("child_process");
 
@@ -52,6 +53,39 @@ function copyDir(src, dest) {
   }
 }
 
+function lightpandaKeyForTarget(targetName) {
+  if (targetName.includes("linux-arm64")) return "linux-arm64";
+  if (targetName.includes("linux-x64")) return "linux-x64";
+  return null;
+}
+
+function lightpandaSourceForKey(key) {
+  const envName = key === "linux-arm64" ? "LIGHTPANDA_BIN_ARM64" : "LIGHTPANDA_BIN_X64";
+  if (process.env[envName]) return path.resolve(process.env[envName]);
+  const currentKey = process.arch === "arm64" ? "linux-arm64" : "linux-x64";
+  if (key === currentKey) return path.join(os.homedir(), ".cache", "lightpanda-node", "lightpanda");
+  return "";
+}
+
+function prepareLightpandaAssets(targetNames) {
+  if (process.env.BUNDLE_LIGHTPANDA !== "1") return;
+  const keys = Array.from(new Set(targetNames.map(lightpandaKeyForTarget).filter(Boolean)));
+  for (const key of keys) {
+    const source = lightpandaSourceForKey(key);
+    if (!source || !fs.existsSync(source)) {
+      console.error(`Error: binary Lightpanda untuk ${key} tidak ditemukan.`);
+      console.error("Set LIGHTPANDA_BIN_X64 atau LIGHTPANDA_BIN_ARM64, atau install @lightpanda/browser pada arsitektur yang sama.");
+      process.exit(1);
+    }
+    const destDir = path.join(distDir, "assets", "lightpanda", key);
+    const dest = path.join(destDir, "lightpanda");
+    fs.mkdirSync(destDir, { recursive: true });
+    fs.copyFileSync(source, dest);
+    fs.chmodSync(dest, 0o700);
+    console.log(`Lightpanda asset: dist/assets/lightpanda/${key}/lightpanda`);
+  }
+}
+
 // Bersihkan dist folder dulu sebelum copy ulang
 try { fs.rmSync(distDir, { recursive: true, force: true }); } catch (_) {}
 
@@ -61,6 +95,7 @@ fs.mkdirSync(releaseDir, { recursive: true });
 
 // Copy seluruh struktur src/ ke dist/ agar pkg bisa resolve semua require('./lib/...')
 copyDir(srcDir, distDir);
+prepareLightpandaAssets(process.env.BUILD_RELEASE === "1" ? releaseTargets.map((item) => item[0]) : [target]);
 const entryPoint = path.join(distDir, "seotask.js");
 fs.chmodSync(entryPoint, 0o755);
 // Buat bundle (symlink entry point)
@@ -104,13 +139,13 @@ if (!fs.existsSync(pkg)) {
 if (process.env.BUILD_RELEASE === "1") {
   for (const [releaseTarget, fileName] of releaseTargets) {
     const output = path.join(releaseDir, fileName);
-    run(pkg, [obfuscated, "--targets", releaseTarget, "--output", output]);
+    run(pkg, [obfuscated, "--config", path.join(root, "package.json"), "--targets", releaseTarget, "--output", output]);
     fs.chmodSync(output, 0o755);
     console.log(`Binary dibuat: release/${fileName}`);
   }
 } else {
   const output = path.join(buildDir, "seotask");
-  run(pkg, [obfuscated, "--targets", target, "--output", output]);
+  run(pkg, [obfuscated, "--config", path.join(root, "package.json"), "--targets", target, "--output", output]);
   fs.chmodSync(output, 0o755);
   console.log("Binary dibuat: build/seotask");
 }
