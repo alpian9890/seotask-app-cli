@@ -99,6 +99,10 @@ function credentialsPath() {
   return path.join(configDir(), "credentials.json");
 }
 
+function gmailPath() {
+  return path.join(configDir(), "gmail.json");
+}
+
 function binaryPath() {
   return process.pkg ? process.execPath : path.resolve(process.argv[1] || process.execPath);
 }
@@ -500,6 +504,7 @@ module.exports = {
   fingerprintPath,
   telegramPath,
   credentialsPath,
+  gmailPath,
   binaryPath,
   fileStatus,
   canWriteDir,

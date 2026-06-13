@@ -2,16 +2,18 @@
 
 // ─── Help printers ───────────────────────────────────────────────────────────
 function printRootHelp() {
-  console.log(`usage: seotask [-h] {login,creds,credentials,fingerprint,telegram,status,start,stop,service,log,earnings,estimate,doctor,health,version,update,uninstall} ...
+  console.log(`usage: seotask [-h] {login,creds,credentials,gmail,fingerprint,telegram,status,start,stop,service,log,earnings,estimate,doctor,health,version,update,uninstall} ...
 
-CLI ringkas SeoTask: login, creds, fingerprint, telegram, status, start, stop, service, log, earnings, estimate, doctor, health, version, update, uninstall.
+CLI ringkas SeoTask: login, creds, gmail, fingerprint, telegram, status, start, stop, service, log, earnings, estimate, doctor, health, version, update, uninstall.
 
 positional arguments:
-  {login,creds,credentials,fingerprint,telegram,status,start,stop,service,log,earnings,estimate,doctor,health,version,update,uninstall}
+  {login,creds,credentials,gmail,fingerprint,telegram,status,start,stop,service,log,earnings,estimate,doctor,health,version,update,uninstall}
     login               Login akun menggunakan email/password atau cookie.
     creds (credentials)
                         Setup credentials untuk auto relogin (atau cek status
                         credentials).
+    gmail               Setup google_email @gmail.com untuk payload Android
+                        device.
     fingerprint         Kelola fingerprint Android unik per VPS.
     telegram            Kelola notifikasi earnings harian via Telegram.
     status              Cek status sesi, info akun, dan saldo RUB.
@@ -45,6 +47,8 @@ function printLoginHelp() {
 
 options:
   -h, --help              show this help message and exit
+  tanpa argumen           Pakai credentials tersimpan jika ada, atau prompt
+                          EMAIL/PASSWORD jika belum ada.
   --email EMAIL           Email akun SeoTask. Login akan meminta CAPTCHA jika
                           server menampilkannya.
   --password PASSWORD     Password akun SeoTask.
@@ -67,6 +71,19 @@ function printCredsHelp() {
 
 positional arguments:
   {status}    Gunakan \`status\` untuk melihat credentials tersimpan.
+
+options:
+  -h, --help  show this help message and exit`);
+}
+
+function printGmailHelp() {
+  console.log(`usage: seotask gmail [-h] [{status}]
+
+positional arguments:
+  {status}    Gunakan \`status\` untuk melihat google_email yang dipakai.
+
+Tanpa argumen, command ini akan menawarkan penggunaan email login SeoTask
+jika alamatnya @gmail.com, atau meminta input alamat @gmail.com lain.
 
 options:
   -h, --help  show this help message and exit`);
@@ -246,6 +263,7 @@ module.exports = {
   printVersionHelp,
   printLoginHelp,
   printCredsHelp,
+  printGmailHelp,
   printFingerprintHelp,
   printTelegramHelp,
   printStatusHelp,

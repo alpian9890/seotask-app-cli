@@ -14,6 +14,7 @@ const {
   telegramPath,
   sessionPath,
   credentialsPath,
+  gmailPath,
   statePath,
   earningsPath,
   logPath,
@@ -37,6 +38,7 @@ async function cmdDoctor() {
   add("Telegram", fileStatus(telegramPath()));
   add("Session", fileStatus(sessionPath()));
   add("Credentials", fileStatus(credentialsPath()));
+  add("Google Email", fileStatus(gmailPath()));
   add("State", fileStatus(statePath()));
   add("Earnings", fileStatus(earningsPath()));
   add("Log", fileStatus(logPath()));

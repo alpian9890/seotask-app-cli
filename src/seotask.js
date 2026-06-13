@@ -8,6 +8,7 @@ const {
   printVersionHelp,
   printLoginHelp,
   printCredsHelp,
+  printGmailHelp,
   printFingerprintHelp,
   printTelegramHelp,
   printStatusHelp,
@@ -27,6 +28,7 @@ const VALID_COMMANDS = new Set([
   "login",
   "creds",
   "credentials",
+  "gmail",
   "fingerprint",
   "telegram",
   "status",
@@ -87,6 +89,14 @@ async function dispatch(argv) {
     args.action = args._[0] || null;
     const { cmdCreds } = require("./commands/creds");
     return cmdCreds(args);
+  }
+  if (command === "gmail") {
+    const args = parseOptions(rest, { names: {}, flags: new Set() });
+    if (args.help) { printGmailHelp(); return 0; }
+    if (args._.length > 1 || (args._[0] && args._[0] !== "status")) throw new UsageError("argument action: invalid choice");
+    args.action = args._[0] || null;
+    const { cmdGmail } = require("./commands/gmail");
+    return cmdGmail(args);
   }
   if (command === "fingerprint") {
     const args = parseOptions(rest, {

@@ -1,6 +1,5 @@
 "use strict";
 
-const { auth } = require("../lib/auth");
 const { prompt } = require("../lib/auth");
 
 async function cmdCreds(args) {

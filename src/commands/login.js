@@ -7,8 +7,19 @@ const { CliError } = require("../lib/errors");
 const { expandHome, normalizeUserAgent } = require("../lib/utils");
 const { loadSession } = require("../lib/session");
 const { loadFingerprint } = require("../lib/fingerprint");
-const { prompt, runLoginWithCredentials } = require("../lib/auth");
+const { loadCredentials, prompt, runLoginWithCredentials } = require("../lib/auth");
 const { saveSessionCookie } = require("../lib/session");
+
+async function askUseSavedCredentials(creds) {
+  console.log(`Email: ${creds.email}`);
+  console.log(`Password: ${creds.password}`);
+  while (true) {
+    const answer = String(await prompt("Login sebagai user ini? (y/n): ")).trim().toLowerCase();
+    if (["y", "yes"].includes(answer)) return true;
+    if (["n", "no"].includes(answer)) return false;
+    console.log("Input tidak valid. Jawab y atau n.");
+  }
+}
 
 async function cmdLogin(args) {
   if (args.cookie || args.cookieFile) {
@@ -34,8 +45,20 @@ async function cmdLogin(args) {
     console.log("Jalankan `seotask status` untuk verifikasi session.");
     return 0;
   }
-  const email = String(args.email !== undefined ? args.email : await prompt("EMAIL: ")).trim();
-  const password = String(args.password !== undefined ? args.password : await prompt("PASSWORD: ")).trim();
+
+  let email = args.email;
+  let password = args.password;
+  if (email === undefined && password === undefined) {
+    const creds = loadCredentials(false);
+    if (creds && await askUseSavedCredentials(creds)) {
+      email = creds.email;
+      password = creds.password;
+    }
+  }
+  if (email === undefined) email = await prompt("EMAIL: ");
+  if (password === undefined) password = await prompt("PASSWORD: ");
+  email = String(email).trim();
+  password = String(password).trim();
   if (!email || !password) throw new CliError("Gunakan: seotask login --email 'email@mail.com' --password 'password'");
   return runLoginWithCredentials(args, email, password);
 }

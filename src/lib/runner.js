@@ -48,6 +48,7 @@ const {
 const { loadSession, saveSessionCookie, readCookieFile } = require("./session");
 const { loadFingerprint } = require("./fingerprint");
 const { loadCredentials, runLoginWithCredentials } = require("./auth");
+const { effectiveGoogleEmail, isValidEmail, maskGoogleEmail } = require("./gmail");
 const { recordEarning } = require("./earnings");
 const { sendReloginTelegramNotification } = require("./telegram");
 
@@ -136,6 +137,7 @@ function resolveRuntimeProfile(args, session) {
   if (!deviceId) deviceId = generateDeviceId();
   let appToken = normalizeHeaderValue("X-App-Token", args.appToken || fingerprint.app_token || session.app_token);
   if (!appToken) appToken = buildAppToken(deviceId, appPackage);
+  const googleEmail = effectiveGoogleEmail(session);
   return {
     user_agent: userAgent,
     x_requested_with: xRequestedWith,
@@ -143,6 +145,8 @@ function resolveRuntimeProfile(args, session) {
     app_version: appVersion,
     device_id: deviceId,
     app_token: appToken,
+    google_email: googleEmail.email,
+    google_email_source: googleEmail.source,
     fingerprint_preset: fingerprint.preset || null,
     fingerprint_label: fingerprint.label || null,
     hardware: fingerprint.hardware || null,
@@ -204,6 +208,9 @@ function buildHeadlessDeviceJson(profile) {
     timezone: profile.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
     extra,
   };
+  if (profile.google_email && isValidEmail(profile.google_email)) {
+    deviceJson.google_email = maskGoogleEmail(profile.google_email);
+  }
   return JSON.stringify(deviceJson);
 }
 
@@ -502,7 +509,7 @@ async function cmdStart(args) {
           ajax_func: "up_data",
           hash_ajax: hashAjax,
           id_device: profile.device_id,
-          email: loginEmail,
+          email: profile.google_email || "",
           data_json: deviceJson,
         };
         let upStatus;
