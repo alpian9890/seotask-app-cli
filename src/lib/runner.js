@@ -51,6 +51,8 @@ const { loadCredentials, runLoginWithCredentials } = require("./auth");
 const { effectiveGoogleEmail, isValidEmail, maskGoogleEmail } = require("./gmail");
 const { recordEarning } = require("./earnings");
 const { sendReloginTelegramNotification } = require("./telegram");
+const { loadPlayerConfig } = require("../player/config");
+const { createPlayer } = require("../player");
 
 // ─── State helpers ───────────────────────────────────────────────────────────
 function recoverStaleRunnerState(reason, logLine = true) {
@@ -409,6 +411,10 @@ async function cmdStart(args) {
     current_task_running: false,
     last_error: null,
   };
+  const playerConfig = { ...loadPlayerConfig() };
+  if (args.noYoutubeTouch) playerConfig.engine = "none";
+  const player = createPlayer({ config: playerConfig, profile, youtubeCookie, timeout });
+  state.player_engine = player.engine;
   atomicWriteJson(statePath(), state);
   const { logEvent } = require("./utils");
   logEvent("Runner headless: START");
@@ -477,6 +483,8 @@ async function cmdStart(args) {
   };
 
   try {
+    await player.start();
+    logEvent(`[PLAYER] engine=${player.engine}`);
     while (runnerIsActive()) {
       let homeStatus;
       let finalUrl;
@@ -554,6 +562,17 @@ async function cmdStart(args) {
           updated_at: nowUtc(),
         });
         atomicWriteJson(statePath(), currentState);
+        try {
+          await player.clear({
+            status: "WAIT",
+            message: mess,
+            reason: mess,
+            reward: currentState.last_reward || "",
+            balance: currentState.last_balance || "",
+          });
+        } catch (error) {
+          logEvent(`[PLAYER/WARN] Gagal clear player: ${error.message || error}`);
+        }
         saveCookieStoreToSession(cookieStore, profile, domain);
         const lower = mess.toLowerCase();
         if (lower.includes("error device")) {
@@ -589,21 +608,38 @@ async function cmdStart(args) {
         if (!(await waitWithStop(pollInterval))) break;
         continue;
       }
+      const taskStartedAt = nowUtc();
       updateRunnerState({
         last_status: "TASK",
         last_message: `video=${videoId} | timer=${timer}s | id_status=${idStatus}`,
         current_task_running: true,
-        current_task_started_at: nowUtc(),
+        current_task_started_at: taskStartedAt,
         current_task_video_id: videoId,
         current_task_id_status: idStatus,
         current_task_timer: timer,
         current_task_url: taskUrl,
+        player_engine: player.engine,
       });
       logEvent(`[TASK] video=${videoId} | timer=${timer}s | id_status=${idStatus}`);
       if (args.verbose) logEvent(`[URL] ${taskUrl}`);
-      if (!args.noYoutubeTouch) {
-        const ytStatus = await touchYoutubeUrl(taskUrl, String(profile.user_agent), youtubeCookie, timeout);
-        if (args.verbose) logEvent(`[YOUTUBE] status=${ytStatus === null ? "gagal" : ytStatus}`);
+      const playResult = await player.play(taskUrl, {
+        status: "TASK",
+        message: `video=${videoId} | timer=${timer}s | id_status=${idStatus}`,
+        idStatus,
+        videoId,
+        timer,
+        startedAt: taskStartedAt,
+        reward: "",
+        balance: (readJson(statePath()) || {}).last_balance || "",
+      });
+      if (args.verbose) {
+        const status = playResult && Object.prototype.hasOwnProperty.call(playResult, "status")
+          ? playResult.status
+          : "ok";
+        logEvent(`[PLAYER] engine=${player.engine} status=${status === null ? "gagal" : status}`);
+        if (playResult && playResult.playerUrl) logEvent(`[PLAYER] url=${playResult.playerUrl}`);
+        if (playResult && playResult.cdpUrl) logEvent(`[DEVTOOLS] ${playResult.cdpUrl}`);
+        if (playResult && playResult.error) logEvent(`[PLAYER/WARN] ${playResult.error}`);
       }
       const finished = await countdownTask(timer, { idStatus, videoId });
       if (!finished) {
@@ -611,6 +647,9 @@ async function cmdStart(args) {
         const [, ignoreResult] = await postWebappJson("ajax/ajax_views.php", ignorePayload, profile, cookieStore, { timeout });
         logEvent(`[STOP] Task diabaikan: ${ignoreResult.mess || ignoreResult.status}`);
         updateRunnerState({ current_task_running: false, current_task_stopped_at: nowUtc() });
+        try {
+          await player.clear({ status: "WAIT", message: "Task stopped", reason: "Stop diminta" });
+        } catch (_) {}
         break;
       }
       const completePayload = { ajax_func: "complete_task", id_status: String(idStatus), data_json: deviceJson, hash_ajax: hashAjax };
@@ -650,6 +689,16 @@ async function cmdStart(args) {
         updated_at: nowUtc(),
       });
       atomicWriteJson(statePath(), currentState);
+      try {
+        await player.update({
+          status: Boolean(completeResult.status) ? "DONE" : "WARN",
+          message: currentState.last_message,
+          reward: completeResult.price || 0,
+          balance: completeResult.balance || "?",
+        });
+      } catch (error) {
+        logEvent(`[PLAYER/WARN] Gagal update player: ${error.message || error}`);
+      }
       saveCookieStoreToSession(cookieStore, profile, domain);
       if (maxTasks > 0 && processed >= maxTasks) {
         logEvent(`Batas max_tasks=${maxTasks} tercapai. Runner dihentikan.`);
@@ -664,6 +713,12 @@ async function cmdStart(args) {
     logEvent(`[SESSION/ERROR] ${error.message || error}`);
     throw error;
   } finally {
+    try {
+      await player.stop();
+    } catch (error) {
+      const { logEvent } = require("./utils");
+      logEvent(`[PLAYER/WARN] Gagal stop player: ${error.message || error}`);
+    }
     saveCookieStoreToSession(cookieStore, profile, domain);
     const finalState = readJson(statePath()) || {};
     Object.assign(finalState, { running: false, stopped_at: nowUtc(), processed_tasks: processed, current_task_running: false });

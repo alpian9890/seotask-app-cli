@@ -2,7 +2,7 @@
 
 // ─── Aplikasi ────────────────────────────────────────────────────────────────
 const APP_NAME = "seotask-cli";
-const CLI_VERSION = "1.0.6";
+const CLI_VERSION = "1.0.7";
 const GITHUB_REPO = "alpian9890/seotask-app-cli";
 
 // ─── URL & Domain ────────────────────────────────────────────────────────────

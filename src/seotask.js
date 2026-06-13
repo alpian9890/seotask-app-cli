@@ -11,6 +11,8 @@ const {
   printGmailHelp,
   printFingerprintHelp,
   printTelegramHelp,
+  printPlayerHelp,
+  printDevtoolsHelp,
   printStatusHelp,
   printStartHelp,
   printStopHelp,
@@ -31,6 +33,8 @@ const VALID_COMMANDS = new Set([
   "gmail",
   "fingerprint",
   "telegram",
+  "player",
+  "devtools",
   "status",
   "start",
   "stop",
@@ -133,6 +137,52 @@ async function dispatch(argv) {
     args.action = args._[0];
     const { cmdTelegram } = require("./commands/telegram");
     return cmdTelegram(args);
+  }
+  if (command === "player") {
+    const args = parseOptions(rest, {
+      names: {
+        engine: "engine",
+        host: "host",
+        port: "port",
+        timeout: "timeout",
+        "browser-path": "browserPath",
+        "cdp-host": "cdpHost",
+        "cdp-port": "cdpPort",
+        "user-data-dir": "userDataDir",
+        "cookie-file": "cookieFile",
+        timer: "timer",
+      },
+      flags: new Set(),
+    });
+    if (args.help) { printPlayerHelp(); return 0; }
+    const action = args._[0] || "touch";
+    if (!["touch", "chromium", "lightpanda", "none", "status", "test"].includes(action))
+      throw new UsageError("argument action: invalid choice");
+    if (action === "test") {
+      if (args._.length !== 2) throw new UsageError("usage: seotask player test URL");
+      args.url = args._[1];
+    } else if (args._.length > 1) {
+      throw new UsageError("unrecognized arguments: " + args._.slice(1).join(" "));
+    }
+    args.action = action;
+    const { cmdPlayer } = require("./commands/player");
+    return cmdPlayer(args);
+  }
+  if (command === "devtools") {
+    const args = parseOptions(rest, {
+      names: {
+        port: "port",
+        host: "host",
+        bind: "bind",
+      },
+      flags: new Set(),
+    });
+    if (args.help) { printDevtoolsHelp(); return 0; }
+    if (args._.length !== 1 || !["status", "off", "local", "public", "frontend", "url"].includes(args._[0]))
+      throw new UsageError("argument action: invalid choice");
+    args.action = args._[0];
+    const { cmdDevtools } = require("./commands/devtools");
+    return cmdDevtools(args);
   }
   if (command === "status") {
     const args = parseOptions(rest, { names: {}, flags: new Set() });

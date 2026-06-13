@@ -2,12 +2,12 @@
 
 // ─── Help printers ───────────────────────────────────────────────────────────
 function printRootHelp() {
-  console.log(`usage: seotask [-h] {login,creds,credentials,gmail,fingerprint,telegram,status,start,stop,service,log,earnings,estimate,doctor,health,version,update,uninstall} ...
+  console.log(`usage: seotask [-h] {login,creds,credentials,gmail,fingerprint,telegram,player,devtools,status,start,stop,service,log,earnings,estimate,doctor,health,version,update,uninstall} ...
 
-CLI ringkas SeoTask: login, creds, gmail, fingerprint, telegram, status, start, stop, service, log, earnings, estimate, doctor, health, version, update, uninstall.
+CLI ringkas SeoTask: login, creds, gmail, fingerprint, telegram, player, devtools, status, start, stop, service, log, earnings, estimate, doctor, health, version, update, uninstall.
 
 positional arguments:
-  {login,creds,credentials,gmail,fingerprint,telegram,status,start,stop,service,log,earnings,estimate,doctor,health,version,update,uninstall}
+  {login,creds,credentials,gmail,fingerprint,telegram,player,devtools,status,start,stop,service,log,earnings,estimate,doctor,health,version,update,uninstall}
     login               Login akun menggunakan email/password atau cookie.
     creds (credentials)
                         Setup credentials untuk auto relogin (atau cek status
@@ -16,6 +16,8 @@ positional arguments:
                         device.
     fingerprint         Kelola fingerprint Android unik per VPS.
     telegram            Kelola notifikasi earnings harian via Telegram.
+    player              Kelola engine player YouTube untuk task.
+    devtools            Kelola akses CDP/DevTools untuk engine browser.
     status              Cek status sesi, info akun, dan saldo RUB.
     start               Mulai runner headless: get_task -> countdown ->
                         complete_task.
@@ -151,6 +153,68 @@ Saat setup interaktif, kamu bisa memilih paste link topic, isi manual,
 atau setup nanti untuk notifikasi login dan earnings.`);
 }
 
+function printPlayerHelp() {
+  console.log(`usage: seotask player [-h] {touch,chromium,lightpanda,none,status,test}
+                      [URL] [--engine ENGINE] [--host HOST] [--port PORT]
+                      [--timeout SECONDS] [--browser-path PATH]
+                      [--cdp-host HOST] [--cdp-port PORT]
+                      [--user-data-dir DIR] [--cookie-file FILE]
+                      [--timer SECONDS]
+
+positional arguments:
+  {touch,chromium,lightpanda,none,status,test}
+              touch: aktifkan mode touch URL YouTube sebagai default stabil.
+              chromium: pilih engine Chromium untuk eksperimen berikutnya.
+              lightpanda: pilih engine Lightpanda untuk eksperimen berikutnya.
+              none: nonaktifkan player/touch YouTube.
+              status: tampilkan config player aktif.
+              test: test URL YouTube dengan engine aktif atau --engine.
+  URL         URL YouTube untuk action test.
+
+options:
+  -h, --help          show this help message and exit
+  --engine ENGINE     Engine untuk test: touch, chromium, lightpanda, none.
+  --host HOST         Host local player server. Default: 127.0.0.1
+  --port PORT         Port local player server. 0 = random.
+  --timeout SECONDS   Timeout player/request. Default: 30
+  --browser-path PATH Path browser eksternal untuk engine browser.
+  --cdp-host HOST     Host CDP eksternal/Lightpanda.
+  --cdp-port PORT     Port CDP eksternal/Lightpanda.
+  --user-data-dir DIR Direktori profil browser.
+  --cookie-file FILE  Cookie YouTube untuk mode touch/test.
+  --timer SECONDS     Timer simulasi untuk test. Default: 30
+
+Tanpa argumen, \`seotask player\` sama dengan \`seotask player touch\`.
+User-Agent player memakai fingerprint tanpa suffix SeoTask-App/1.0.`);
+}
+
+function printDevtoolsHelp() {
+  console.log(`usage: seotask devtools [-h] {status,off,local,public,frontend,url}
+                         [--port PORT] [--host HOST] [--bind ADDRESS]
+
+positional arguments:
+  {status,off,local,public,frontend,url}
+              status: tampilkan konfigurasi DevTools saat ini.
+              off: matikan remote debugging untuk start berikutnya.
+              local: aktifkan DevTools di 127.0.0.1 untuk SSH port
+                     forwarding.
+              public: aktifkan DevTools di 0.0.0.0 agar bisa diakses via
+                      IP:PORT publik jika firewall mengizinkan.
+              frontend: seperti public, tetapi fokus ke URL
+                        chrome-devtools-frontend.appspot.com.
+              url: tampilkan URL frontend untuk browser yang sedang berjalan.
+
+options:
+  -h, --help      show this help message and exit
+  --port PORT     Port DevTools. Default: 9222
+  --host HOST     Host/IP yang ditampilkan untuk akses publik/frontend.
+  --bind ADDRESS  Bind address DevTools. Default local=127.0.0.1,
+                  public/frontend=0.0.0.0
+
+Mode local paling aman: jalankan \`ssh -L PORT:127.0.0.1:PORT node2\`,
+lalu buka http://127.0.0.1:PORT saat runner/player aktif.`);
+}
+
 function printStatusHelp() {
   console.log(`usage: seotask status [-h] [-v]
 
@@ -284,6 +348,8 @@ module.exports = {
   printGmailHelp,
   printFingerprintHelp,
   printTelegramHelp,
+  printPlayerHelp,
+  printDevtoolsHelp,
   printStatusHelp,
   printStartHelp,
   printStopHelp,
