@@ -113,6 +113,10 @@ options:
 function printTelegramHelp() {
   console.log(`usage: seotask telegram [-h] {setup,status,test,send,disable,enable}
                         [--bot-token BOT_TOKEN] [--chat-id CHAT_ID]
+                        [--login-topic URL]
+                        [--login-chat-id CHAT_ID --login-thread-id ID]
+                        [--earnings-topic URL]
+                        [--earnings-chat-id CHAT_ID --earnings-thread-id ID]
                         [--time HH:MM] [--timezone TIMEZONE] [--test]
 
 positional arguments:
@@ -127,10 +131,24 @@ positional arguments:
 options:
   -h, --help             show this help message and exit
   --bot-token BOT_TOKEN  Token bot Telegram.
-  --chat-id CHAT_ID      Chat ID tujuan.
+  --chat-id CHAT_ID      Chat ID default tujuan.
+  --login-topic URL      Link topic login, contoh:
+                         https://t.me/c/4305132504/2
+  --login-chat-id CHAT_ID
+                         CHAT_ID manual untuk notifikasi login.
+  --login-thread-id ID   THREAD_ID manual untuk notifikasi login.
+  --earnings-topic URL   Link topic earnings, contoh:
+                         https://t.me/c/4305132504/7
+  --earnings-chat-id CHAT_ID
+                         CHAT_ID manual untuk notifikasi earnings.
+  --earnings-thread-id ID
+                         THREAD_ID manual untuk notifikasi earnings.
   --time HH:MM           Jadwal harian. Default: 06:00
   --timezone TIMEZONE    Timezone jadwal. Default: Asia/Jakarta
-  --test                 Kirim pesan test setelah setup.`);
+  --test                 Kirim pesan test setelah setup.
+
+Saat setup interaktif, kamu bisa memilih paste link topic, isi manual,
+atau setup nanti untuk notifikasi login dan earnings.`);
 }
 
 function printStatusHelp() {
