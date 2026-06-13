@@ -1,6 +1,6 @@
 {
   "name": "seotask-app-cli",
-  "version": "1.0.3",
+  "version": "1.0.5",
   "description": "Node.js CLI for SeoTask session management, headless runner, auto relogin, and VPS service automation.",
   "license": "MIT",
   "type": "commonjs",
@@ -8,7 +8,7 @@
     "seotask": "./src/seotask.js"
   },
   "scripts": {
-    "check": "node --check src/seotask.js && node --check scripts/build.js",
+    "check": "node --check src/seotask.js && node --check src/config/constants.js && node --check src/lib/errors.js && node --check src/lib/utils.js && node --check src/lib/http.js && node --check src/lib/session.js && node --check src/lib/fingerprint.js && node --check src/lib/auth.js && node --check src/lib/gmail.js && node --check src/lib/runner.js && node --check src/lib/telegram.js && node --check src/lib/service.js && node --check src/lib/earnings.js && node --check src/lib/parser.js && node --check src/help/index.js && for f in src/commands/*.js; do node --check \"$f\" || exit 1; done && node --check scripts/build.js",
     "start": "node src/seotask.js",
     "build": "node scripts/build.js",
     "build:arm64": "PKG_TARGET=node18-linux-arm64 node scripts/build.js",

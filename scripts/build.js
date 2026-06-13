@@ -6,7 +6,7 @@ const path = require("path");
 const { spawnSync } = require("child_process");
 
 const root = path.resolve(__dirname, "..");
-const src = path.join(root, "src", "seotask.js");
+const srcDir = path.join(root, "src");
 const distDir = path.join(root, "dist");
 const buildDir = path.join(root, "build");
 const releaseDir = path.join(root, "release");
@@ -39,10 +39,32 @@ function binPath(name) {
   return path.join(root, "node_modules", ".bin", name + ext);
 }
 
+function copyDir(src, dest) {
+  fs.mkdirSync(dest, { recursive: true });
+  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      copyDir(srcPath, destPath);
+    } else {
+      fs.copyFileSync(srcPath, destPath);
+    }
+  }
+}
+
+// Bersihkan dist folder dulu sebelum copy ulang
+try { fs.rmSync(distDir, { recursive: true, force: true }); } catch (_) {}
+
 fs.mkdirSync(distDir, { recursive: true });
 fs.mkdirSync(buildDir, { recursive: true });
 fs.mkdirSync(releaseDir, { recursive: true });
-fs.copyFileSync(src, bundle);
+
+// Copy seluruh struktur src/ ke dist/ agar pkg bisa resolve semua require('./lib/...')
+copyDir(srcDir, distDir);
+const entryPoint = path.join(distDir, "seotask.js");
+fs.chmodSync(entryPoint, 0o755);
+// Buat bundle (symlink entry point)
+fs.copyFileSync(entryPoint, bundle);
 fs.chmodSync(bundle, 0o755);
 
 const obfuscator = binPath("javascript-obfuscator");
