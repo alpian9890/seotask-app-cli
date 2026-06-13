@@ -416,7 +416,7 @@ async function cmdStart(args) {
   };
   const playerConfig = { ...loadPlayerConfig() };
   if (args.noYoutubeTouch) playerConfig.engine = "none";
-  const player = createPlayer({ config: playerConfig, profile, youtubeCookie, timeout });
+  let player = createPlayer({ config: playerConfig, profile, youtubeCookie, timeout });
   state.player_engine = player.engine;
   atomicWriteJson(statePath(), state);
   const { logEvent } = require("./utils");
@@ -429,6 +429,37 @@ async function cmdStart(args) {
   let deviceFallbackTried = false;
   let deviceJson = buildHeadlessDeviceJson(profile);
   let lastReloginAttempt = 0;
+
+  const startPlayerWithFallback = async () => {
+    try {
+      await player.start();
+      logEvent(`[PLAYER] engine=${player.engine}`);
+      return;
+    } catch (error) {
+      const message = error.message || String(error);
+      logEvent(`[PLAYER/ERROR] engine=${player.engine} gagal start: ${message}`);
+      if (["touch", "none"].includes(player.engine)) throw error;
+      try {
+        await player.stop();
+      } catch (_) {}
+      const previousEngine = player.engine;
+      player = createPlayer({
+        config: { ...playerConfig, engine: "touch" },
+        profile,
+        youtubeCookie,
+        timeout,
+      });
+      updateRunnerState({
+        player_engine: player.engine,
+        player_fallback_from: previousEngine,
+        last_status: "PLAYER_FALLBACK",
+        last_message: `Player ${previousEngine} gagal, fallback ke touch HTTP.`,
+      });
+      logEvent(`[PLAYER/FALLBACK] ${previousEngine} gagal, menggunakan engine=touch HTTP untuk run ini.`);
+      await player.start();
+      logEvent(`[PLAYER] engine=${player.engine}`);
+    }
+  };
 
   const tryAutoRelogin = async (trigger) => {
     const notifyRelogin = async (status, message = "") => {
@@ -507,8 +538,7 @@ async function cmdStart(args) {
   };
 
   try {
-    await player.start();
-    logEvent(`[PLAYER] engine=${player.engine}`);
+    await startPlayerWithFallback();
     while (runnerIsActive()) {
       let homeStatus;
       let finalUrl;
@@ -648,7 +678,41 @@ async function cmdStart(args) {
       });
       logEvent(`[TASK] video=${videoId} | timer=${timer}s | id_status=${idStatus}`);
       if (args.verbose) logEvent(`[URL] ${taskUrl}`);
-      const playResult = await player.play(taskUrl, {
+      let playResult;
+      try {
+        playResult = await player.play(taskUrl, {
+          status: "TASK",
+          message: `video=${videoId} | timer=${timer}s | id_status=${idStatus}`,
+          idStatus,
+          videoId,
+          timer,
+          startedAt: taskStartedAt,
+          reward: "",
+          balance: (readJson(statePath()) || {}).last_balance || "",
+        });
+      } catch (error) {
+        const message = error.message || String(error);
+        logEvent(`[PLAYER/ERROR] engine=${player.engine} gagal play: ${message}`);
+        if (["touch", "none"].includes(player.engine)) throw error;
+        const previousEngine = player.engine;
+        try {
+          await player.stop();
+        } catch (_) {}
+        player = createPlayer({
+          config: { ...playerConfig, engine: "touch" },
+          profile,
+          youtubeCookie,
+          timeout,
+        });
+        await player.start();
+        updateRunnerState({
+          player_engine: player.engine,
+          player_fallback_from: previousEngine,
+          last_status: "PLAYER_FALLBACK",
+          last_message: `Player ${previousEngine} gagal saat play, fallback ke touch HTTP.`,
+        });
+        logEvent(`[PLAYER/FALLBACK] ${previousEngine} gagal saat play, menggunakan engine=touch HTTP untuk run ini.`);
+        playResult = await player.play(taskUrl, {
         status: "TASK",
         message: `video=${videoId} | timer=${timer}s | id_status=${idStatus}`,
         idStatus,
@@ -657,7 +721,8 @@ async function cmdStart(args) {
         startedAt: taskStartedAt,
         reward: "",
         balance: (readJson(statePath()) || {}).last_balance || "",
-      });
+        });
+      }
       if (args.verbose) {
         const status = playResult && Object.prototype.hasOwnProperty.call(playResult, "status")
           ? playResult.status

@@ -4,6 +4,7 @@ const fs = require("fs");
 const net = require("net");
 const os = require("os");
 const path = require("path");
+const { spawnSync } = require("child_process");
 const { PlayerServer } = require("./player-server");
 const { CliError } = require("../lib/errors");
 const { configDir } = require("../lib/utils");
@@ -67,6 +68,24 @@ function resolveLightpandaExecutable() {
   );
 }
 
+function validateLightpandaExecutable(file) {
+  const result = spawnSync(file, ["__seotask_healthcheck__"], {
+    encoding: "utf8",
+    timeout: 3000,
+  });
+  const output = `${result.stderr || ""}${result.stdout || ""}`.trim();
+  if (result.error && result.error.code !== "ETIMEDOUT") {
+    throw new CliError(`Lightpanda tidak bisa dijalankan: ${result.error.message || result.error}`);
+  }
+  if (/GLIBC_[0-9.]+.*not found|version `GLIBC_[0-9.]+' not found|cannot execute|permission denied|no such file/i.test(output)) {
+    const detail = output.split(/\r?\n/).slice(0, 4).join(" | ");
+    throw new CliError(
+      `Lightpanda tidak kompatibel dengan OS ini atau dependency sistem kurang. Detail: ${detail}. ` +
+      "Gunakan Ubuntu 22.04/24.04 atau pilih `seotask player touch` pada VPS ini."
+    );
+  }
+}
+
 function requireLightpanda() {
   try {
     return require("@lightpanda/browser/dist/index.cjs").lightpanda;
@@ -123,6 +142,7 @@ class LightpandaPlayer {
   async start() {
     if (this.browser) return this.info();
     this.executablePath = resolveLightpandaExecutable();
+    validateLightpandaExecutable(this.executablePath);
     process.env.LIGHTPANDA_EXECUTABLE_PATH = this.executablePath;
     const lightpanda = requireLightpanda();
     const puppeteer = requirePuppeteerCore();
@@ -154,7 +174,14 @@ class LightpandaPlayer {
         targetPort: this.internalCdpPort,
       };
     }
-    this.browser = await puppeteer.connect({ browserURL: `http://${this.internalCdpHost}:${this.internalCdpPort}` });
+    try {
+      this.browser = await puppeteer.connect({ browserURL: `http://${this.internalCdpHost}:${this.internalCdpPort}` });
+    } catch (error) {
+      throw new CliError(
+        `Lightpanda CDP tidak siap di http://${this.internalCdpHost}:${this.internalCdpPort}/json/version: ${error.message || error}. ` +
+        "Jika VPS memakai OS lama, pilih `seotask player touch` atau upgrade OS."
+      );
+    }
     this.page = await this.browser.newPage();
     if (this.browserUserAgent) {
       try {
