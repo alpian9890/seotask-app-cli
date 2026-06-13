@@ -372,10 +372,13 @@ function registerRunnerSignalHandlers() {
 async function cmdStart(args) {
   if (!args.serviceRun && fs.existsSync(SERVICE_PATH)) {
     const active = serviceStatusValue("is-active");
-    if (["active", "activating"].includes(active)) {
+    if (active === "active") {
       console.log("Service SeoTask sudah aktif.");
       console.log(taskStatusLine());
       return 0;
+    }
+    if (active === "activating") {
+      throw new CliError("Service SeoTask sedang activating/auto-restart. Cek `seotask service status` dan `sudo systemctl status seotask --no-pager -l`.");
     }
     if (!isRoot()) {
       throw new CliError("SeoTask terpasang sebagai service. Jalankan `sudo seotask start` atau `sudo seotask service start`.");

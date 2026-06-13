@@ -1,7 +1,13 @@
 "use strict";
 
 const { CliError } = require("../lib/errors");
-const { serviceActiveStatus, serviceEnabledStatus, serviceUnitExists } = require("../lib/service");
+const {
+  serviceActiveStatus,
+  serviceEnabledStatus,
+  serviceUnitExists,
+  readInstalledServiceTarget,
+  applyInstalledServiceEnv,
+} = require("../lib/service");
 const { taskStatusLine } = require("../lib/runner");
 
 async function cmdService(args) {
@@ -10,11 +16,18 @@ async function cmdService(args) {
     const active = serviceActiveStatus();
     const enabled = serviceEnabledStatus();
     const { SERVICE_PATH } = require("../config/constants");
+    const target = readInstalledServiceTarget();
+    applyInstalledServiceEnv();
     console.log(`Service file: ${SERVICE_PATH}`);
     console.log(`Active: ${active}`);
     console.log(`Enabled: ${enabled}`);
+    if (target) {
+      if (target.user) console.log(`User: ${target.user}`);
+      if (target.home) console.log(`HOME: ${target.home}`);
+      if (target.config) console.log(`Config: ${target.config}`);
+    }
     console.log(taskStatusLine());
-    return ["active", "activating"].includes(active) ? 0 : 1;
+    return active === "active" ? 0 : 1;
   }
   const {
     cmdServiceInstall,
