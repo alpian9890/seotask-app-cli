@@ -61,6 +61,18 @@ systemd_available() {
   return 0
 }
 
+cleanup() {
+  if [ -n "${tmp_dir:-}" ]; then
+    rm -rf "$tmp_dir"
+  fi
+}
+
+cancel_setup() {
+  cleanup
+  printf "\nSetup dihentikan, silahkan konfigurasi nanti menggunakan command seotask.\n" >/dev/tty 2>/dev/null || true
+  exit 130
+}
+
 detect_target_user() {
   if [ -n "${SEOTASK_USER:-}" ]; then
     echo "$SEOTASK_USER"
@@ -123,6 +135,145 @@ ask_yes_no() {
   [ "$answer" = "y" ] || [ "$answer" = "yes" ]
 }
 
+ask_choice() {
+  prompt="$1"
+  default="$2"
+  choices="$3"
+  if [ ! -r /dev/tty ]; then
+    echo "$default"
+    return 0
+  fi
+  while :; do
+    printf "%s " "$prompt" >/dev/tty
+    read -r answer </dev/tty || answer=""
+    if [ -z "$answer" ]; then
+      answer="$default"
+    fi
+    case " $choices " in
+      *" $answer "*)
+        echo "$answer"
+        return 0
+        ;;
+    esac
+    printf "Pilihan tidak valid. Pilih salah satu: %s\n" "$choices" >/dev/tty
+  done
+}
+
+ask_text() {
+  prompt="$1"
+  default="${2:-}"
+  if [ ! -r /dev/tty ]; then
+    echo "$default"
+    return 0
+  fi
+  if [ -n "$default" ]; then
+    printf "%s [%s]: " "$prompt" "$default" >/dev/tty
+  else
+    printf "%s: " "$prompt" >/dev/tty
+  fi
+  read -r answer </dev/tty || answer=""
+  if [ -z "$answer" ]; then
+    answer="$default"
+  fi
+  echo "$answer"
+}
+
+run_setup_step() {
+  label="$1"
+  shift
+  echo ""
+  echo "==> ${label}"
+  if "$@"; then
+    return 0
+  fi
+  echo "Setup ${label} gagal/dilewati. Kamu bisa konfigurasi lagi nanti."
+  return 0
+}
+
+setup_player() {
+  echo "Pilih engine player:"
+  echo "1. touch"
+  echo "2. lightpanda"
+  echo "3. chromium"
+  echo "0. none"
+  choice="$(ask_choice "Player engine [1/2/3/0, default 1]:" "1" "1 2 3 0 touch lightpanda chromium none")"
+  case "$choice" in
+    1|touch)
+      engine="touch"
+      ;;
+    2|lightpanda)
+      engine="lightpanda"
+      ;;
+    3|chromium)
+      engine="chromium"
+      ;;
+    0|none)
+      engine="none"
+      ;;
+  esac
+  run_as_target_user "${INSTALL_DIR}/${BIN_NAME}" player "$engine"
+}
+
+setup_devtools() {
+  echo "Pilih mode DevTools:"
+  echo "0. off"
+  echo "1. local"
+  echo "2. public"
+  choice="$(ask_choice "DevTools mode [0/1/2, default 0]:" "0" "0 1 2 off local public")"
+  case "$choice" in
+    1|local)
+      port="$(ask_text "Port DevTools local" "9568")"
+      run_as_target_user "${INSTALL_DIR}/${BIN_NAME}" devtools local --port "$port"
+      ;;
+    2|public)
+      port="$(ask_text "Port DevTools public" "9568")"
+      run_as_target_user "${INSTALL_DIR}/${BIN_NAME}" devtools public --port "$port"
+      ;;
+    *)
+      run_as_target_user "${INSTALL_DIR}/${BIN_NAME}" devtools off
+      ;;
+  esac
+  echo ""
+  run_as_target_user "${INSTALL_DIR}/${BIN_NAME}" devtools status
+}
+
+summary_value() {
+  file="$1"
+  key="$2"
+  if [ -r "$file" ]; then
+    sed -n "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" "$file" | head -n 1
+  fi
+}
+
+print_summary() {
+  credentials_file="${TARGET_CONFIG}/credentials.json"
+  telegram_file="${TARGET_CONFIG}/telegram.json"
+  echo ""
+  echo "Ringkasan konfigurasi SeoTask"
+  echo "User: ${TARGET_USER}"
+  echo "Config: ${TARGET_CONFIG}"
+  email="$(summary_value "$credentials_file" "email")"
+  if [ -n "$email" ]; then
+    echo "Akun SeoTask: ${email}"
+  else
+    echo "Akun SeoTask: belum diset"
+  fi
+  echo ""
+  run_as_target_user "${INSTALL_DIR}/${BIN_NAME}" gmail status || true
+  echo ""
+  run_as_target_user "${INSTALL_DIR}/${BIN_NAME}" telegram status || true
+  if [ -r "$telegram_file" ]; then
+    echo "Login thread: $(summary_value "$telegram_file" "login_thread_id")"
+    echo "Earnings thread: $(summary_value "$telegram_file" "earnings_thread_id")"
+  fi
+  echo ""
+  run_as_target_user "${INSTALL_DIR}/${BIN_NAME}" player status || true
+  echo ""
+  run_as_target_user "${INSTALL_DIR}/${BIN_NAME}" devtools status || true
+  echo ""
+  echo "Silahkan jalankan 'seotask login' & 'seotask start' untuk memulai tugas"
+}
+
 arch="$(detect_arch)"
 asset="seotask-linux-${arch}"
 TARGET_USER="$(detect_target_user)"
@@ -141,7 +292,8 @@ fi
 tmp_dir="${TMPDIR:-/tmp}/seotask-install.$$"
 tmp_bin="${tmp_dir}/${BIN_NAME}"
 mkdir -p "$tmp_dir"
-trap 'rm -rf "$tmp_dir"' EXIT INT TERM
+trap cleanup EXIT
+trap cancel_setup INT TERM
 
 echo "Mengunduh ${asset}..."
 download "$url" "$tmp_bin"
@@ -177,9 +329,35 @@ fi
 
 if ask_yes_no "Setup Telegram group/topic untuk notifikasi login dan earnings harian?" "n"; then
   echo "WARNING: Pastikan BOT telegram valid dan sudah ditambahkan ke dalam group"
-  run_as_target_user "${INSTALL_DIR}/${BIN_NAME}" telegram setup
+  run_setup_step "Telegram" run_as_target_user "${INSTALL_DIR}/${BIN_NAME}" telegram setup
 else
   echo "Kamu bisa setup nanti menggunakan perintah: seotask telegram setup"
 fi
+
+if ask_yes_no "Setup credentials SeoTask sekarang?" "y"; then
+  run_setup_step "credentials SeoTask" run_as_target_user "${INSTALL_DIR}/${BIN_NAME}" credentials
+else
+  echo "Kamu bisa setup nanti menggunakan perintah: seotask credentials"
+fi
+
+if ask_yes_no "Setup Google/Gmail untuk payload task sekarang?" "y"; then
+  run_setup_step "Google/Gmail" run_as_target_user "${INSTALL_DIR}/${BIN_NAME}" gmail
+else
+  echo "Kamu bisa setup nanti menggunakan perintah: seotask gmail"
+fi
+
+if ask_yes_no "Setup player YouTube sekarang?" "y"; then
+  run_setup_step "player" setup_player
+else
+  echo "Kamu bisa setup nanti menggunakan perintah: seotask player"
+fi
+
+if ask_yes_no "Setup DevTools sekarang?" "y"; then
+  run_setup_step "DevTools" setup_devtools
+else
+  echo "Kamu bisa setup nanti menggunakan perintah: seotask devtools"
+fi
+
+print_summary
 
 echo "Selesai."
