@@ -304,6 +304,10 @@ async function sendCaptchaPreviewToTelegram(captcha, assets, options = {}) {
     console.log("Preview CAPTCHA belum dikirim ke Telegram. Jalankan `seotask telegram setup` untuk mengaktifkan pengiriman preview CAPTCHA.");
     return false;
   }
+  if (config.enabled === false) {
+    console.log("Preview CAPTCHA tidak dikirim ke Telegram karena notifikasi Telegram sedang disabled.");
+    return false;
+  }
   if (!assets.optionsPath) {
     console.log("Preview CAPTCHA tidak dikirim ke Telegram: gambar pilihan tidak ditemukan.");
     return false;

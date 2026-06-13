@@ -438,9 +438,23 @@ async function cmdStart(args) {
         logEvent(`[TELEGRAM] Gagal kirim notifikasi relogin: ${error.message || error}`);
       }
     };
+    const stopServiceForInteractiveRelogin = (status, message) => {
+      if (!args.serviceRun) return false;
+      updateRunnerState({
+        running: false,
+        current_task_running: false,
+        stopped_at: nowUtc(),
+        last_status: status,
+        last_message: message,
+      });
+      logEvent(`[RELOGIN] ${message}`);
+      return "service_stop";
+    };
     if (!creds) {
       logEvent("[RELOGIN] Credentials belum tersedia (`seotask creds`).");
       await notifyRelogin("Gagal", "Credentials belum tersedia. Jalankan `seotask creds` atau `seotask credentials`.");
+      const stopped = stopServiceForInteractiveRelogin("RELOGIN_CREDENTIALS", "Service dihentikan: credentials belum tersedia untuk auto relogin.");
+      if (stopped) return stopped;
       return false;
     }
     const now = Date.now() / 1000;
@@ -466,6 +480,13 @@ async function cmdStart(args) {
       logEvent(`[RELOGIN] Gagal: ${error.message || error}`);
       const message = String(error.message || error);
       await notifyRelogin(message.includes("CAPTCHA") ? "Gagal - CAPTCHA" : "Gagal", message);
+      if (message.includes("CAPTCHA")) {
+        const stopped = stopServiceForInteractiveRelogin(
+          "RELOGIN_CAPTCHA",
+          "Service dihentikan: relogin membutuhkan CAPTCHA interaktif. Jalankan `seotask login` lalu `sudo seotask service start`."
+        );
+        if (stopped) return stopped;
+      }
       return false;
     }
     session = loadSession(true);
@@ -506,7 +527,9 @@ async function cmdStart(args) {
       const { looksLoggedIn } = require("./auth");
       const [loggedIn, reason] = looksLoggedIn(finalUrl, body);
       if (!loggedIn) {
-        if (await tryAutoRelogin(reason)) continue;
+        const reloginResult = await tryAutoRelogin(reason);
+        if (reloginResult === true) continue;
+        if (reloginResult === "service_stop") break;
         throw new CliError(`Sesi login berakhir saat start: ${reason}`);
       }
       if (!hashAjax) {
