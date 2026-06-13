@@ -320,7 +320,7 @@ async function sendCaptchaPreviewToTelegram(captcha, assets, options = {}) {
       `IP VPS: ${ip}`,
       "Pilih nomor dari kiri ke kanan, atas ke bawah.",
     ].filter(Boolean).join("\n");
-    await sendTelegramPhoto(config, assets.optionsPath, caption);
+    await sendTelegramPhoto(config, assets.optionsPath, caption, { topic: "login" });
     console.log(options.sessionExpired ? "Preview CAPTCHA relogin sudah dikirim ke bot Telegram." : "Preview CAPTCHA sudah dikirim ke bot Telegram.");
     return true;
   } catch (error) {

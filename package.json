@@ -1,6 +1,6 @@
 {
   "name": "seotask-app-cli",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Node.js CLI for SeoTask session management, headless runner, auto relogin, and VPS service automation.",
   "license": "MIT",
   "type": "commonjs",

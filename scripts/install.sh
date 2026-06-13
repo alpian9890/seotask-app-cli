@@ -128,7 +128,8 @@ else
   echo "Systemd tidak terdeteksi, install service dilewati."
 fi
 
-if ask_yes_no "Apakah kamu ingin preview CAPTCHA dan earning harian dikirim ke Telegram?" "n"; then
+if ask_yes_no "Setup Telegram group/topic untuk notifikasi login dan earnings harian?" "n"; then
+  echo "WARNING: Pastikan BOT telegram valid dan sudah ditambahkan ke dalam group"
   "${INSTALL_DIR}/${BIN_NAME}" telegram setup
 else
   echo "Kamu bisa setup nanti menggunakan perintah: seotask telegram setup"

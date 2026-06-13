@@ -61,15 +61,65 @@ function saveTelegramConfig(data) {
   return telegramPath();
 }
 
+function parseTelegramTopicLink(value) {
+  const text = String(value || "").trim();
+  if (!text) return null;
+  const match = text.match(/^(?:https?:\/\/)?(?:www\.)?t\.me\/c\/(\d+)\/(\d+)(?:[/?#].*)?$/i);
+  if (!match) return null;
+  return {
+    chat_id: `-100${match[1]}`,
+    thread_id: Number.parseInt(match[2], 10),
+  };
+}
+
+function normalizeTelegramChatId(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const parsed = parseTelegramTopicLink(text);
+  if (parsed) return parsed.chat_id;
+  if (/^-?\d+$/.test(text) || /^@[A-Za-z0-9_]{5,}$/.test(text)) return text;
+  throw new CliError("CHAT_ID Telegram tidak valid. Gunakan -100..., @username, atau link topic https://t.me/c/.../...");
+}
+
+function normalizeTelegramThreadId(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const parsed = parseTelegramTopicLink(text);
+  const threadId = parsed ? parsed.thread_id : Number.parseInt(text, 10);
+  if (!Number.isInteger(threadId) || threadId <= 0) {
+    throw new CliError("THREAD_ID Telegram tidak valid. Gunakan angka thread id atau link topic https://t.me/c/.../...");
+  }
+  return String(threadId);
+}
+
+function telegramTopicTarget(config, topic = null) {
+  const key = topic === "login" || topic === "earnings" ? topic : null;
+  const chatId = String((key && config[`${key}_chat_id`]) || config.chat_id || "").trim();
+  const threadId = String((key && config[`${key}_thread_id`]) || "").trim();
+  return { chatId, threadId };
+}
+
+function telegramTargetConfigured(config, topic = null) {
+  return Boolean(telegramTopicTarget(config || {}, topic).chatId);
+}
+
+function telegramTargetText(config, topic = null) {
+  const target = telegramTopicTarget(config || {}, topic);
+  if (!target.chatId) return "-";
+  return target.threadId ? `${target.chatId} / thread ${target.threadId}` : target.chatId;
+}
+
 // ─── Send Telegram message ───────────────────────────────────────────────────
-async function sendTelegramMessage(config, text) {
+async function sendTelegramMessage(config, text, options = {}) {
   const token = String(config.bot_token || "").trim();
-  const chatId = String(config.chat_id || "").trim();
+  const { chatId, threadId } = telegramTopicTarget(config, options.topic);
   if (!token || !chatId) throw new CliError("BOT_TOKEN atau CHAT_ID Telegram belum lengkap.");
+  const payload = { chat_id: chatId, text };
+  if (threadId) payload.message_thread_id = Number.parseInt(threadId, 10);
   const response = await httpRequest(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "User-Agent": `seotask/${CLI_VERSION}` },
-    data: Buffer.from(JSON.stringify({ chat_id: chatId, text }), "utf8"),
+    data: Buffer.from(JSON.stringify(payload), "utf8"),
     timeout: 12,
     retries: 1,
     ipv4Fallback: true,
@@ -86,9 +136,9 @@ async function sendTelegramMessage(config, text) {
   return data;
 }
 
-async function sendTelegramPhoto(config, photoPath, caption) {
+async function sendTelegramPhoto(config, photoPath, caption, options = {}) {
   const token = String(config.bot_token || "").trim();
-  const chatId = String(config.chat_id || "").trim();
+  const { chatId, threadId } = telegramTopicTarget(config, options.topic);
   if (!token || !chatId) throw new CliError("BOT_TOKEN atau CHAT_ID Telegram belum lengkap.");
   const photo = fs.readFileSync(photoPath);
   const ext = path.extname(photoPath).toLowerCase();
@@ -99,6 +149,7 @@ async function sendTelegramPhoto(config, photoPath, caption) {
     chunks.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`, "utf8"));
   };
   field("chat_id", chatId);
+  if (threadId) field("message_thread_id", String(Number.parseInt(threadId, 10)));
   field("caption", String(caption || "").slice(0, 1000));
   chunks.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="photo"; filename="${path.basename(photoPath)}"\r\nContent-Type: ${contentType}\r\n\r\n`, "utf8"));
   chunks.push(photo);
@@ -144,7 +195,7 @@ async function sendReloginTelegramNotification(status, details = {}) {
   ];
   if (details.email) lines.push(`Email: ${details.email}`);
   if (details.message) lines.push(`Info: ${details.message}`);
-  await sendTelegramMessage(config, lines.join("\n"));
+  await sendTelegramMessage(config, lines.join("\n"), { topic: "login" });
   return true;
 }
 
@@ -334,6 +385,12 @@ function analyzeRunnerHealth() {
 module.exports = {
   loadTelegramConfig,
   saveTelegramConfig,
+  parseTelegramTopicLink,
+  normalizeTelegramChatId,
+  normalizeTelegramThreadId,
+  telegramTopicTarget,
+  telegramTargetConfigured,
+  telegramTargetText,
   sendTelegramMessage,
   sendTelegramPhoto,
   sendReloginTelegramNotification,

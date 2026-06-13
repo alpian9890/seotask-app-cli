@@ -112,7 +112,19 @@ async function dispatch(argv) {
   }
   if (command === "telegram") {
     const args = parseOptions(rest, {
-      names: { "bot-token": "botToken", "chat-id": "chatId", time: "time", timezone: "timezone", test: "test" },
+      names: {
+        "bot-token": "botToken",
+        "chat-id": "chatId",
+        "login-topic": "loginTopic",
+        "login-chat-id": "loginChatId",
+        "login-thread-id": "loginThreadId",
+        "earnings-topic": "earningsTopic",
+        "earnings-chat-id": "earningsChatId",
+        "earnings-thread-id": "earningsThreadId",
+        time: "time",
+        timezone: "timezone",
+        test: "test",
+      },
       flags: new Set(["test"]),
     });
     if (args.help) { printTelegramHelp(); return 0; }
